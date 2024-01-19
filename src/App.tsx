@@ -1,8 +1,6 @@
 import React from 'react'
-import MainApp from './screen'
+import HomeScreen from "./screen";
 
 export default function App() {
-  return (
-   <MainApp/>
-  )
+  return <HomeScreen />;
 }

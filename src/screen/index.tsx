@@ -1,9 +1,9 @@
 import { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
-import { NodeType,ChildNodeType} from "../utils";
+import { NodeType, ChildNodeType } from "../utils";
 
-const CONTAINER_HEIGHT = 225;
-const CONTAINER_WIDTH = 300;
+const PARENT_HEIGHT = 225;
+const PARENT_WIDTH = 300;
 
 const CHILD_HEIGHT = 50;
 const CHILD_WIDTH = 60;
@@ -12,7 +12,7 @@ const CHILD_WIDTH = 60;
 const INITIAL_NODES: NodeType[] = [
   {
     id: "google",
-    x: window.innerWidth / 2 - 150,
+    x: window.innerWidth / 2 - 250,
     y: 100,
     label: "Google",
     type: "parent",
@@ -52,15 +52,15 @@ const INITIAL_NODES: NodeType[] = [
   },
 ];
 
-const MainApp = () => {
-  const containerRef = useRef<SVGSVGElement | null>(null);
-
+const HomeScreen = () => {
   const [nodes, setNodes] = useState<NodeType[]>(INITIAL_NODES);
   const [width, setWidth] = useState<number>(0);
   const [height, setHeight] = useState<number>(0);
 
+  const parentRef = useRef<SVGSVGElement | null>(null);
+
   //to move container nodes
-  const drag = d3.drag<SVGGElement, NodeType>().on("drag", (event, d) => {
+  const toMove = d3.drag<SVGGElement, NodeType>().on("drag", (event, d) => {
     setNodes((prevNodes) =>
       prevNodes.map((node) =>
         node.id === d.id ? { ...node, x: event.x, y: event.y } : node
@@ -72,23 +72,23 @@ const MainApp = () => {
   const childDrag = d3
     .drag<SVGGElement, ChildNodeType>()
     .on("drag", (event, d) => {
-      // @ts-expect-error 
+      // @ts-expect-error
       setNodes((prevNodes) =>
         prevNodes.map((node) => ({
           ...node,
           children: node.children.map((child, i) => {
-            const validX =
+            const getX =
               (child as ChildNodeType).x !== null
                 ? Math.min(
                     (child as ChildNodeType).x + event.dx,
-                    CONTAINER_WIDTH - (i + 1) * CHILD_WIDTH
+                    PARENT_WIDTH - (i + 1) * CHILD_WIDTH
                   )
                 : event.x;
-            const validY =
+            const getY =
               (child as ChildNodeType).y !== null
                 ? Math.min(
                     (child as ChildNodeType).y + event.dy,
-                    CONTAINER_HEIGHT - CHILD_HEIGHT
+                    PARENT_HEIGHT - CHILD_HEIGHT
                   )
                 : event.x;
 
@@ -96,9 +96,9 @@ const MainApp = () => {
               ? {
                   ...child,
                   x: Number(
-                    validX <= -i * CHILD_WIDTH ? -(i * CHILD_WIDTH) : validX
+                    getX <= -i * CHILD_WIDTH ? -(i * CHILD_WIDTH) : getX
                   ),
-                  y: Number(validY <= 0 ? 0 : validY),
+                  y: Number(getY <= 0 ? 0 : getY),
                 }
               : child;
           }),
@@ -110,43 +110,43 @@ const MainApp = () => {
     setWidth(window.innerWidth - 10);
     setHeight(window.innerHeight - 10);
   }, []);
-  
-  // init d3 and render containers and nodes
+
+  // render parent container and child nodes after initiating D3.
   useEffect(() => {
-    const svg = d3.select(containerRef.current);
+    const svg = d3.select(parentRef.current);
 
     const render = () => {
-      // container and child node elements
+      // parent container and child node elements
       const node = svg
         .selectAll<SVGGElement, NodeType>(".node")
         .data(nodes, (d) => d.id);
-      const subNodes = svg.selectAll<SVGGElement, NodeType>(".child-group");
+      const subChildNode = svg.selectAll<SVGGElement, NodeType>(".child-group");
 
       // init container group
-      const nodeEnter = node
+      const childNodeEnter = node
         .enter()
         .append("g")
         .attr("class", "node")
-        .call(drag); // apply drag behavior to container nodes
+        .call(toMove); // apply drag behavior to container nodes
 
       // position and render rectangles for each container
-      nodeEnter
+      childNodeEnter
         .append("rect")
-        .attr("width", CONTAINER_WIDTH)
-        .attr("height", CONTAINER_HEIGHT)
+        .attr("width", PARENT_WIDTH)
+        .attr("height", PARENT_HEIGHT)
         .style("fill", "#9fafd1")
         .attr("rx", 20);
 
       // add label for container nodes
-      nodeEnter
+      childNodeEnter
         .append("text")
         .attr("x", 150)
-        .attr("y", CONTAINER_HEIGHT - CONTAINER_HEIGHT / 3)
+        .attr("y", PARENT_HEIGHT - PARENT_HEIGHT / 3)
         .attr("text-anchor", "middle")
         .text((d) => d.label);
 
       // init child group
-      const childGroups = nodeEnter
+      const childGroups = childNodeEnter
         .selectAll<SVGGElement, NodeType>(".child-group")
         .data((d) => d.children as ChildNodeType[])
         .enter()
@@ -172,11 +172,11 @@ const MainApp = () => {
         .attr("y", () => CHILD_HEIGHT / 2)
         .attr("text-anchor", "middle")
         .text((d) => d.label)
-        .style("font-size", "12px");  
+        .style("font-size", "12px");
 
-      // update node with nodeEnter
+      // update node with childNodeEnter
       node
-        .merge(nodeEnter)
+        .merge(childNodeEnter)
         // apply the transform to the container groups
         .attr(
           "transform",
@@ -184,20 +184,20 @@ const MainApp = () => {
         );
 
       // update the position of child nodes
-      subNodes.attr("transform", (child) => {
+      subChildNode.attr("transform", (child) => {
         // find child from updated state in `nodes`
-        let currChild = nodes
+        let alphaChild = nodes
           .flatMap((n) => n.children as ChildNodeType[])
           .find((n) => n.label === (child as NodeType).label);
 
-        if (!currChild)
-          currChild = {
+        if (!alphaChild)
+          alphaChild = {
             ...child,
             x: 0,
             y: 0,
           };
 
-        return `translate(${currChild.x},${currChild.y})`;
+        return `translate(${alphaChild.x},${alphaChild.y})`;
       });
 
       node.exit().remove();
@@ -221,9 +221,9 @@ const MainApp = () => {
     };
 
     render();
-  }, [childDrag, drag, nodes]);
+  }, [childDrag, toMove, nodes]);
 
-  return <svg ref={containerRef} width={width} height={height} />;
+  return <svg ref={parentRef} width={width} height={height} />;
 };
 
-export default MainApp;
+export default HomeScreen;
