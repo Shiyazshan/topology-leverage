@@ -1,27 +1,33 @@
 import { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
-import { NodeType, ChildNodeType } from "../utils";
+import { NodeType, ChildNodeType } from "../types";
+import {
+  CHILD_BG_COLOR,
+  CHILD_HEIGHT,
+  CHILD_ICON_SIZE,
+  CHILD_WIDTH,
+  CONNECTOR_LINE_COLOR,
+  PARENT_BG_COLOR,
+  PARENT_HEIGHT,
+  PARENT_ICON_SIZE,
+  PARENT_WIDTH,
+} from "../constants";
 
-const PARENT_HEIGHT = 225;
-const PARENT_WIDTH = 300;
-
-const CHILD_HEIGHT = 50;
-const CHILD_WIDTH = 60;
-
-// Child labels must to be distinct on every container.
 const INITIAL_NODES: NodeType[] = [
   {
     id: "google",
-    x: window.innerWidth / 2 - 250,
-    y: 100,
+    icon: "/icons/google.svg",
+    x: window.innerWidth / 2 - PARENT_WIDTH / 2,
+    y: PARENT_HEIGHT / 2,
     label: "Google",
     type: "parent",
-    children: ["nySites", "caSites"],
+    children: ["ny_sites", "vo_sites"],
   },
   {
-    id: "nySites",
-    x: 100,
-    y: 400,
+    id: "ny_sites",
+    icon: "/icons/us-flag.svg",
+    x: window.innerWidth / 2 - PARENT_WIDTH * 2,
+    y: PARENT_HEIGHT * 2,
     label: "New York Sites",
     type: "child",
     children: [
@@ -32,83 +38,81 @@ const INITIAL_NODES: NodeType[] = [
     ],
   },
   {
-    id: "caSites",
-    x: 500,
-    y: 400,
-    label: "California Sites",
+    id: "vo_sites",
+    icon: "/icons/us-flag.svg",
+    x: window.innerWidth / 2 - PARENT_WIDTH / 2,
+    y: PARENT_HEIGHT * 2,
+    label: "Vermont Sites",
     type: "child",
     children: [
-      { label: "CS-1", x: null, y: null },
-      { label: "CS-2", x: null, y: null },
+      { label: "VO-1", x: null, y: null },
+      { label: "VO-2", x: null, y: null },
     ],
   },
   {
-    id: "banSites",
-    x: 900,
-    y: 400,
+    id: "ban_sites",
+    icon: "/icons/us-flag.svg",
+    x: window.innerWidth / 2 + PARENT_WIDTH,
+    y: PARENT_HEIGHT * 2,
     label: "New Jersey Sites",
     type: "child",
     children: [{ label: "NJ-1", x: null, y: null }],
   },
 ];
 
-const HomeScreen = () => {
+export const HomeScreen = () => {
+  const parentRef = useRef<SVGSVGElement | null>(null);
+
   const [nodes, setNodes] = useState<NodeType[]>(INITIAL_NODES);
   const [width, setWidth] = useState<number>(0);
   const [height, setHeight] = useState<number>(0);
 
-  const parentRef = useRef<SVGSVGElement | null>(null);
-
-  //to move container nodes
-  const toMove = d3.drag<SVGGElement, NodeType>().on("drag", (event, d) => {
+  // to parent container nodes
+  const onParentDrag = (event: any, d: NodeType) => {
     setNodes((prevNodes) =>
       prevNodes.map((node) =>
         node.id === d.id ? { ...node, x: event.x, y: event.y } : node
       )
     );
-  });
+  };
 
   // to move child nodes
-  const childDrag = d3
-    .drag<SVGGElement, ChildNodeType>()
-    .on("drag", (event, d) => {
-      // @ts-expect-error
-      setNodes((prevNodes) =>
-        prevNodes.map((node) => ({
-          ...node,
-          children: node.children.map((child, i) => {
-            const getX =
-              (child as ChildNodeType).x !== null
-                ? Math.min(
-                    (child as ChildNodeType).x + event.dx,
-                    PARENT_WIDTH - (i + 1) * CHILD_WIDTH
-                  )
-                : event.x;
-            const getY =
-              (child as ChildNodeType).y !== null
-                ? Math.min(
-                    (child as ChildNodeType).y + event.dy,
-                    PARENT_HEIGHT - CHILD_HEIGHT
-                  )
-                : event.x;
+  const onChildDrag = (event: any, d: ChildNodeType) => {
+    // @ts-expect-error
+    setNodes((prevNodes) =>
+      prevNodes.map((node) => ({
+        ...node,
+        children: node.children.map((child, i) => {
+          const getX =
+            (child as ChildNodeType).x !== null
+              ? Math.min(
+                  (child as ChildNodeType).x + event.dx,
+                  PARENT_WIDTH - (i + 1) * CHILD_WIDTH
+                )
+              : event.x;
+          const getY =
+            (child as ChildNodeType).y !== null
+              ? Math.min(
+                  (child as ChildNodeType).y + event.dy,
+                  PARENT_HEIGHT - CHILD_HEIGHT
+                )
+              : event.x;
 
-            return typeof child !== "string" && child.label === d.label
-              ? {
-                  ...child,
-                  x: Number(
-                    getX <= -i * CHILD_WIDTH ? -(i * CHILD_WIDTH) : getX
-                  ),
-                  y: Number(getY <= 0 ? 0 : getY),
-                }
-              : child;
-          }),
-        }))
-      );
-    });
+          return typeof child !== "string" && child.label === d.label
+            ? {
+                ...child,
+                x: Number(getX <= -i * CHILD_WIDTH ? -(i * CHILD_WIDTH) : getX),
+                y: Number(getY <= 0 ? 0 : getY),
+              }
+            : child;
+        }),
+      }))
+    );
+  };
 
   useEffect(() => {
-    setWidth(window.innerWidth - 10);
-    setHeight(window.innerHeight - 10);
+    setWidth(window.innerWidth);
+    setHeight(window.innerHeight);
   }, []);
 
   // render parent container and child nodes after initiating D3.
@@ -127,14 +131,14 @@ const HomeScreen = () => {
         .enter()
         .append("g")
         .attr("class", "node")
-        .call(toMove); // apply drag behavior to container nodes
+        .call(d3.drag<SVGGElement, NodeType>().on("drag", onParentDrag)); // apply drag behavior to container nodes
 
       // position and render rectangles for each container
       childNodeEnter
         .append("rect")
         .attr("width", PARENT_WIDTH)
         .attr("height", PARENT_HEIGHT)
-        .style("fill", "#9fafd1")
+        .style("fill", PARENT_BG_COLOR)
         .attr("rx", 20);
 
       // add label for container nodes
@@ -145,6 +149,27 @@ const HomeScreen = () => {
         .attr("text-anchor", "middle")
         .text((d) => d.label);
 
+      // add icons
+      childNodeEnter
+        .append("image")
+        .attr("xlink:href", (d) => d.icon) // assuming that `icon` is the path to the image
+        .attr("x", (d) =>
+          d.type === "parent"
+            ? PARENT_WIDTH / 2 - PARENT_ICON_SIZE / 2
+            : PARENT_WIDTH / 2 - CHILD_ICON_SIZE / 2
+        ) // adjust the x-coordinate as needed
+        .attr("y", (d) =>
+          d.type === "parent"
+            ? PARENT_HEIGHT - PARENT_HEIGHT / 2 - PARENT_ICON_SIZE / 1.5
+            : PARENT_HEIGHT - PARENT_HEIGHT / 2 - CHILD_ICON_SIZE / 1.5
+        ) // adjust the y-coordinate as needed
+        .attr("width", (d) =>
+          d.type === "parent" ? PARENT_ICON_SIZE : CHILD_ICON_SIZE
+        ) // adjust the width as needed
+        .attr("height", (d) =>
+          d.type === "parent" ? PARENT_ICON_SIZE : CHILD_ICON_SIZE
+        ); // adjust the height as needed
+
       // init child group
       const childGroups = childNodeEnter
         .selectAll<SVGGElement, NodeType>(".child-group")
@@ -152,7 +177,7 @@ const HomeScreen = () => {
         .enter()
         .append("g")
         .attr("class", "child-group")
-        .call(childDrag); // apply drag behavior to child nodes
+        .call(d3.drag<SVGGElement, ChildNodeType>().on("drag", onChildDrag)); // apply drag behavior to child nodes
 
       // position and render rectangles for each child inside the main node
       childGroups
@@ -162,7 +187,7 @@ const HomeScreen = () => {
         .attr("height", CHILD_HEIGHT)
         .attr("x", (d, i) => (d.x === null ? i * CHILD_WIDTH : d.x))
         .attr("y", (d) => (d.y === null ? 0 : d.y))
-        .style("fill", "#ffffff")
+        .style("fill", CHILD_BG_COLOR)
         .attr("rx", 50);
 
       // Render text labels for each child inside the main node
@@ -174,10 +199,9 @@ const HomeScreen = () => {
         .text((d) => d.label)
         .style("font-size", "12px");
 
-      // update node with childNodeEnter
       node
         .merge(childNodeEnter)
-        // apply the transform to the container groups
+        // apply the transform to the parent groups
         .attr(
           "transform",
           (d) => `translate(${Number(d.x || 0)},${Number(d.y || 0)})`
@@ -211,19 +235,17 @@ const HomeScreen = () => {
 
       link
         .merge(linkEnter)
-        .attr("x1", () => (nodes[0].x || 0) + 150)
-        .attr("y1", () => (nodes[0].y || 0) + 225)
+        .attr("x1", () => (nodes[0].x || 0) + PARENT_WIDTH / 2)
+        .attr("y1", () => (nodes[0].y || 0) + PARENT_HEIGHT)
         .attr("x2", (d) => (d.x || 0) + 150)
         .attr("y2", (d) => d.y || 0)
-        .attr("stroke", "#dfe4ef");
+        .attr("stroke", CONNECTOR_LINE_COLOR);
 
       link.exit().remove();
     };
 
     render();
-  }, [childDrag, toMove, nodes]);
+  }, [onChildDrag, onParentDrag, nodes]);
 
   return <svg ref={parentRef} width={width} height={height} />;
 };
-
-export default HomeScreen;
